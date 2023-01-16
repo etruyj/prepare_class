@@ -47,6 +47,8 @@ deleteClass()
 {
 	echo "Cleaning up environment to remove users associated in $filename"
 	loadClassFile
+	sudo groupdel "$group"
+	screen -S "$screen" -X quit
 }
 
 deleteUser()
@@ -103,8 +105,6 @@ parseArgs()
 	esac
 
 	while [[ $# -gt 0 ]]; do
-		echo "Arg $1 $2"
-
 		case "$1" in
 			-f|--file)
 				filename="$2"
