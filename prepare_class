@@ -1,0 +1,202 @@
+#!/bin/bash
+
+# Prepares the lab environment for a class by creating users based on a txt class list.
+
+copyPrograms()
+{
+	# go up a directory if the working dir is .config
+	if [[ "$PWD" == "/home/labuser/.config" ]] ; then
+		base_dir="../"
+	fi
+
+	# Copies the required programs incldued 
+	for class in ${classes[@]} ; do
+		sudo chown -R labuser:"$group" "$base_dir"${class}*
+		sudo chmod -R 770 "$base_dir"${class}*
+		sudo cp -r  "$base_dir"${class}* /home/${user}
+	done
+}
+
+createGroup()
+{
+	echo "Creating group: $group"
+	sudo groupadd "$group"
+}
+
+createScreen()
+{
+	# kill the screen if it exists
+	screen -S "$screen" -X quit
+	echo "Creating screen: $screen"
+	screen -S "$screen" -d -m bash
+	screen -S "$screen" -X multiuser on
+       	sudo chmod u+s $(which screen)	
+	sudo chmod 755 /var/run/screen
+}
+
+createUser()
+{
+	echo "Creating user: $user"
+	sudo useradd -m "$user"
+	sudo chpasswd <<<"${user}:${password}"
+	sudo usermod -a -G "$group" "$user"
+	screen -S "$screen" -X acladd "$user"
+}
+
+deleteClass()
+{
+	echo "Cleaning up environment to remove users associated in $filename"
+	loadClassFile
+}
+
+deleteUser()
+{
+	sudo userdel "$user"
+	sudo rm -r /home/"$user"
+}
+
+loadClass()
+{
+	echo "Preparing environment for class list stored in $filename"
+	createGroup
+	createScreen
+	loadClassFile 
+}
+
+loadClassFile()
+{
+	for line in $(cat "$filename")
+	do
+		user="$line"
+
+		if [ "$cmd" == "CLEAR" ]; then
+			deleteUser
+		elif [ "$cmd" == "LOAD" ] ; then
+			createUser
+			copyPrograms
+		fi
+	done
+}
+
+parseArgs()
+{
+	# declare class array
+	classes=()
+
+	case "$1" in
+		clear)
+			cmd="CLEAR"
+			shift # argument
+			;;
+		load)
+			cmd="LOAD"
+			shift # argument
+			;;
+		-h|--help)
+			printHelp
+			exit 0
+			;;
+		*)
+			echo "Unknown command $1"
+			exit 1
+			;;
+	esac
+
+	while [[ $# -gt 0 ]]; do
+		echo "Arg $1 $2"
+
+		case "$1" in
+			-f|--file)
+				filename="$2"
+				shift # past argument
+				shift # past value
+				;;
+			-c|--class)
+				shift # to first value
+				#check if array doesn't start with a dash
+				while ! [[ "$1" = -* ]] ; do 
+					classes+=("$1")
+					shift # to next value
+				done
+				;;
+			-g|--group)
+				group="$2"
+				shift # past argument
+				shift # past value
+				;;
+			-p|--pass|--password)
+				password="$2"
+				shift # past argument
+				shift # past value
+				;;
+			-s|--screen)
+				screen="$2"
+				shift # past argument
+				shift # past value
+				;;
+			-*|--*)
+				echo "Unknown option $1"
+				exit 1
+				;;
+		esac
+	done
+
+	echo "file $filename"
+
+	if [[ -z ${filename} ]] ; then
+	       	echo "Class file not specified."
+		exit 1
+ 	fi
+
+	if [[ -z ${classes} ]] ; then
+		echo "Class isn't set. Will copy all class files"
+		classes=([0]="")
+	fi
+
+	if [[ -z ${group} ]] ; then
+		echo "Group is not set. Setting to 'class'."
+		group='class'	
+	fi	
+
+	if [[ -z ${password} ]] ; then
+		echo "Password is not set. Setting to 'password'."
+		echo "use the --password flag to specify user password."
+		password="password"
+	fi
+
+	if [[ -z ${screen} ]] ; then
+		echo "Screen session not set. Setting to 'training'."
+		screen='training'
+	fi
+
+	if [[ "$cmd" == "CLEAR" ]] ; then
+		deleteClass
+	elif [[ "$cmd" == "LOAD" ]] ; then
+		loadClass
+	fi
+}
+
+printHelp()
+{
+	echo "prepare_class"
+	echo "	This script is used to prepare a VM environment for a training class by creating users, groups, and a screen environment for shared sessions. Scripts should be in the directory level above this and can be specified with space separated values. These variables are wildcarded to match multiple filenames to move into the home directory of the newly created home directories."
+	echo ""
+	echo " -f/--file	path to the file containing the list of desired usernames."
+	echo " -c/--class	List of scripts to be copied over to the home directory. Scripts should be located in the super directory. No specification will copy all files."
+	echo " -g/--group	The name of the group to be used for the class users."
+	echo " -p/--password	The password to be used for class users"
+	echo " -s/--screen	The name of the screen to be used for the shared session. Can be accessed with 'screen -x THIS_USER/SCREEN_NAME'"
+	echo ""
+	echo ""
+	echo "Commands"
+	echo "	clear		Clears the session by deleting all users in the specified --file"
+	echo " 	load		Prepares the class by creating users in the specified --file"
+}
+
+# Function calls
+
+if [ -n "$1" ];
+then
+	parseArgs "$@"
+fi
+
