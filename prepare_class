@@ -4,16 +4,14 @@
 
 copyPrograms()
 {
-	# go up a directory if the working dir is .config
-	if [[ "$PWD" == "/home/labuser/.config" ]] ; then
-		base_dir="../"
-	fi
-
 	# Copies the required programs incldued 
 	for class in ${classes[@]} ; do
-		sudo chown -R labuser:"$group" "$base_dir"${class}*
-		sudo chmod -R 770 "$base_dir"${class}*
-		sudo cp -r  "$base_dir"${class}* /home/${user}
+		sudo cp -r  ${class}* /home/${user}
+
+		for script in ${class}* ; do
+			sudo chown -R "$user":"$group" /home/"$user"/"$script"
+			sudo chmod -R 770 /home/"$user"/"$script"
+		done
 	done
 }
 
@@ -43,6 +41,7 @@ createUser()
 	sudo useradd -m "$user"
 	sudo chpasswd <<<"${user}:${password}"
 	sudo usermod -a -G "$group" "$user"
+	sudo chsh -s /bin/bash "$user" # change the user shell to bash
 	screen -S "$screen" -X acladd "$user"
 }
 
@@ -200,6 +199,9 @@ printHelp()
 
 if [ -n "$1" ];
 then
+	working_dir="$pwd"
+	cd ~
 	parseArgs "$@"
+	cd "$working_dir"
 fi
 
