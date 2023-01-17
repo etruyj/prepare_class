@@ -29,9 +29,12 @@ createScreen()
 	screen -S "$screen" -X quit
 	echo "Creating screen: $screen"
 	screen -S "$screen" -d -m bash
+	screen -S "$screen" -p 0 -X bash "cd ~"
 	screen -S "$screen" -X multiuser on
        	sudo chmod u+s $(which screen)	
 	sudo chmod 755 /var/run/screen
+
+	echo "Remember to log into the screen to change the working directory."
 }
 
 createUser()
@@ -114,7 +117,7 @@ parseArgs()
 			-c|--class)
 				shift # to first value
 				#check if array doesn't start with a dash
-				while ! [[ "$1" = -* ]] ; do 
+				while ! [[ "$1" = -* ]] | [[ -z ${1} ]] ; do 
 					classes+=("$1")
 					shift # to next value
 				done
